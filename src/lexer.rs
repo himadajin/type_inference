@@ -133,3 +133,107 @@ impl<'a> Lexer<'a> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn read_num() {
+        assert_eq!(Some("01".to_string()), Lexer::new("01").read_number());
+        assert_eq!(Some("100".to_string()), Lexer::new("100").read_number());
+        assert_eq!(Some("1".to_string()), Lexer::new("1+1").read_number());
+        assert_eq!(None, Lexer::new("a1").read_number());
+    }
+
+    #[test]
+    fn read_str() {
+        assert_eq!(Some("int".to_string()), Lexer::new("int a").read_str());
+        assert_eq!(
+            Some("return".to_string()),
+            Lexer::new("return 0").read_str()
+        );
+    }
+
+    fn test_lexer(src: &str, expected: Vec<Token>) {
+        let mut lexer = Lexer::new(src);
+
+        let mut tokens: Vec<Token> = Vec::new();
+
+        loop {
+            tokens.push(lexer.next_token());
+
+            if tokens.last().unwrap().kind == TokenKind::EOF {
+                break;
+            }
+        }
+
+        assert_eq!(expected, tokens);
+    }
+
+    #[test]
+    fn tokenize_num() {
+        test_lexer(
+            "100",
+            vec![
+                Token::new(TokenKind::Num, "100"),
+                Token::new(TokenKind::EOF, '\0'),
+            ],
+        );
+
+        test_lexer(
+            "1+2",
+            vec![
+                Token::new(TokenKind::Num, "1"),
+                Token::new(TokenKind::Plus, '+'),
+                Token::new(TokenKind::Num, "2"),
+                Token::new(TokenKind::EOF, "\0"),
+            ],
+        );
+    }
+
+    #[test]
+    fn tokenize_paren() {
+        test_lexer(
+            "(",
+            vec![
+                Token::new(TokenKind::OpenParen, '('),
+                Token::new(TokenKind::EOF, "\0"),
+            ],
+        );
+        test_lexer(
+            ")",
+            vec![
+                Token::new(TokenKind::CloseParen, ')'),
+                Token::new(TokenKind::EOF, "\0"),
+            ],
+        );
+        test_lexer(
+            "(100+1)",
+            vec![
+                Token::new(TokenKind::OpenParen, '('),
+                Token::new(TokenKind::Num, "100"),
+                Token::new(TokenKind::Plus, '+'),
+                Token::new(TokenKind::Num, "1"),
+                Token::new(TokenKind::CloseParen, ')'),
+                Token::new(TokenKind::EOF, "\0"),
+            ],
+        );
+    }
+
+    #[test]
+    fn tokenize_fun() {
+        test_lexer(
+            "fun x -> x + 1",
+            vec![
+                Token::new(TokenKind::Fun, "fun"),
+                Token::new(TokenKind::Identifier, "x"),
+                Token::new(TokenKind::RArrow, "->"),
+                Token::new(TokenKind::Identifier, "x"),
+                Token::new(TokenKind::Plus, '+'),
+                Token::new(TokenKind::Num, "1"),
+                Token::new(TokenKind::EOF, "\0"),
+            ],
+        )
+    }
+}
