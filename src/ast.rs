@@ -82,8 +82,6 @@ impl fmt::Display for Expr {
 
 pub fn collect_ids(ids: &mut HashSet<String>, expr: &Expr) {
     match expr {
-        Expr::Num(_) => (),
-        Expr::Bool(_) => (),
         Expr::Val(id) => {
             ids.insert(id.clone());
         }
@@ -99,6 +97,7 @@ pub fn collect_ids(ids: &mut HashSet<String>, expr: &Expr) {
             collect_ids(ids, fun);
             collect_ids(ids, arg);
         }
+        _ => (),
     }
 }
 
