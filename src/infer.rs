@@ -107,28 +107,68 @@ pub fn collect_aexpr(constraint: &mut Vec<(Type, Type)>, aexpr: &AExpr) {
     }
 }
 
-// pub fn substitute()
+pub fn substitute(u: Type, x: &String, t: Type) -> Type {
+    match t {
+        Type::Num | Type::Bool => t,
+        Type::T(c) => {
+            if c == *x {
+                u
+            } else {
+                Type::T(c)
+            }
+        }
+        Type::Fun(t1, t2) => {
+            let ts1 = substitute(u.clone(), x, t1.as_ref().clone());
+            let ts2 = substitute(u.clone(), x, t2.as_ref().clone());
+            Type::Fun(Box::new(ts1), Box::new(ts2))
+        }
+    }
+}
 
-// pub fn apply(subs: Vec<(String, Type)>, t: Type) -> Type {
-//     unimplemented!();
-// }
+pub fn apply(subs: &Vec<(String, Type)>, t: Type) -> Type {
+    subs.iter()
+        .fold(t, |acc, (x, u)| substitute(u.clone(), x, acc))
+}
 
-// pub fn unify(constraints: Vec<(Type, Type)>) -> Vec<(String, Type)> {
-//     match constraints.pop() {
-//         Some((x, y)) => {
-//             let t2 = unify(constraints);
-//             let t1 = unify_one(tp1, tp2)
-//         }
-        
-//         None => Vec::new(),
-//     }
-// }
+pub fn unify(mut constraints: Vec<(Type, Type)>) -> Vec<(String, Type)> {
+    match constraints.pop() {
+        Some((x, y)) => {
+            let mut t2 = unify(constraints);
+            let mut t1 = unify_one(apply(&t2, x), apply(&t2, y));
 
-// pub fn unify_one(tp1: Type, tp2: Type) -> Vec<(String, Type)> {
-//     match (tp1, tp2) {
-//         (Type::Num, Type::Num) | (Type::Bool, Type::Bool) => Vec::new(),
-//         (Type::T(x), z) | (z, Type::T(x)) => vec![(x, z)],
+            t2.append(&mut t1);
+            t2
+        }
 
-//         (tp1, tp2) => panic!("mismatched types: ({:?}, {:?})", tp1, tp2),
-//     }
-// }
+        None => Vec::new(),
+    }
+}
+
+pub fn unify_one(tp1: Type, tp2: Type) -> Vec<(String, Type)> {
+    match (tp1, tp2) {
+        (Type::Num, Type::Num) | (Type::Bool, Type::Bool) => Vec::new(),
+        (Type::T(x), z) | (z, Type::T(x)) => vec![(x, z)],
+
+        (tp1, tp2) => panic!("mismatched types: ({:?}, {:?})", tp1, tp2),
+    }
+}
+
+pub fn apply_aexpr(subs: &Vec<(String, Type)>, aexpr: AExpr) -> AExpr {
+    match aexpr {
+        AExpr::Num(n, t) => AExpr::Num(n, apply(subs, t)),
+        AExpr::Bool(b, t) => AExpr::Bool(b, apply(subs, t)),
+        AExpr::Val(s, t) => AExpr::Val(s, apply(subs, t)),
+        AExpr::BinOp(lhs, op, rhs, t) => AExpr::BinOp(
+            Box::new(apply_aexpr(subs, *lhs)),
+            op,
+            Box::new(apply_aexpr(subs, *rhs)),
+            apply(subs, t),
+        ),
+        AExpr::Fun(id, e, t) => AExpr::Fun(id, Box::new(apply_aexpr(subs, *e)), apply(subs, t)),
+        AExpr::App(fun, arg, t) => AExpr::App(
+            Box::new(apply_aexpr(subs, *fun)),
+            Box::new(apply_aexpr(subs, *arg)),
+            apply(subs, t),
+        ),
+    }
+}
