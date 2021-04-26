@@ -1,5 +1,6 @@
 use std::{collections::HashSet, convert::From, fmt};
 
+
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum Op {
     Add,
@@ -29,6 +30,17 @@ pub enum Type {
     Bool,
     Fun(Box<Type>, Box<Type>),
     T(String),
+}
+
+impl fmt::Display for Type {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Type::Num => write!(f, "num"),
+            Type::Bool => write!(f, "bool"),
+            Type::Fun(arg, ret) => write!(f, "({}->{})", arg.as_ref(), ret.as_ref()),
+            Type::T(s) => write!(f, "{}", s),
+        }
+    }
 }
 
 impl<'a> From<&'a AExpr> for &'a Type {
@@ -110,3 +122,16 @@ pub enum AExpr {
     Fun(String, Box<AExpr>, Type),
     App(Box<AExpr>, Box<AExpr>, Type),
 }
+
+// impl fmt::Display for AExpr {
+//     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+//         match self {
+//             AExpr::Num(_, _) => {}
+//             AExpr::Bool(_, _) => {}
+//             AExpr::Val(_, _) => {}
+//             AExpr::BinOp(_, _, _, _) => {}
+//             AExpr::Fun(_, _, _) => {}
+//             AExpr::App(_, _, _) => {}
+//         }
+//     }
+// }

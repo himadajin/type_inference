@@ -1,7 +1,7 @@
 use core::panic;
 use std::collections::{HashMap, HashSet};
 
-use crate::ast::{AExpr, Expr, Op, Type};
+use crate::ast::{collect_ids, AExpr, Expr, Op, Type};
 
 pub struct Environment {
     ids: HashMap<String, Type>,
@@ -9,18 +9,18 @@ pub struct Environment {
 }
 
 impl Environment {
-    pub fn new(ids: HashSet<String>) -> Environment {
-        let mut env = Environment {
+    pub fn new() -> Environment {
+        Environment {
             ids: HashMap::new(),
             type_params_count: 0,
-        };
-
-        for id in ids {
-            let tp = env.new_type_param();
-            env.ids.insert(id, tp);
         }
+    }
 
-        env
+    pub fn add_ids(&mut self, ids: HashSet<String>) {
+        for id in ids {
+            let tp = self.new_type_param();
+            self.ids.insert(id, tp);
+        }
     }
 
     pub fn get_id(&self, name: &String) -> Option<&Type> {
@@ -102,7 +102,30 @@ pub fn collect_aexpr(constraint: &mut Vec<(Type, Type)>, aexpr: &AExpr) {
             }
             _ => panic!("not a function"),
         },
-        AExpr::App(_, _, _) => unimplemented!(),
+        AExpr::App(fun, arg, app_tp) => {
+            let fun_tp: &Type = fun.as_ref().into();
+            match fun_tp {
+                Type::Fun(fun_arg_tp, fun_ret_tp) => {
+                    collect_aexpr(constraint, &fun);
+                    collect_aexpr(constraint, &arg);
+
+                    let arg_tp: &Type = arg.as_ref().into();
+                    constraint.push((fun_arg_tp.as_ref().clone(), arg_tp.clone()));
+                    constraint.push((app_tp.clone(), fun_ret_tp.as_ref().clone()));
+                }
+                Type::T(_) => {
+                    collect_aexpr(constraint, &fun);
+                    collect_aexpr(constraint, &arg);
+
+                    let argt: &Type = arg.as_ref().into();
+                    constraint.push((
+                        fun_tp.clone(),
+                        Type::Fun(Box::new(argt.clone()), Box::new(app_tp.clone())),
+                    ));
+                }
+                _ => panic!("incorrect function application"),
+            }
+        }
         _ => (),
     }
 }
@@ -171,4 +194,18 @@ pub fn apply_aexpr(subs: &Vec<(String, Type)>, aexpr: AExpr) -> AExpr {
             apply(subs, t),
         ),
     }
+}
+
+pub fn infer(mut environment: Environment, expr: Expr) -> AExpr {
+    let mut ids = HashSet::new();
+    collect_ids(&mut ids, &expr);
+    environment.add_ids(ids);
+
+    let aexpr = annotate(&expr, &mut environment);
+    let mut constraints = Vec::new();
+    collect_aexpr(&mut constraints, &aexpr);
+
+    let subs = unify(constraints);
+
+    apply_aexpr(&subs, aexpr)
 }
