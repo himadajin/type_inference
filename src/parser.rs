@@ -77,7 +77,14 @@ impl<'a> Parser<'a> {
     }
 
     pub fn expr(&mut self) -> Result<Expr, String> {
-        self.add()
+        let fun = self.add()?;
+        match self.peek_kind() {
+            TokenKind::EOF => Ok(fun),
+            _ => {
+                let arg = self.expr()?;
+                Ok(Expr::App(Box::new(fun), Box::new(arg)))
+            }
+        }
     }
 
     pub fn add(&mut self) -> Result<Expr, String> {
@@ -123,11 +130,7 @@ impl<'a> Parser<'a> {
             TokenKind::True => Ok(Expr::Bool(true)),
             TokenKind::False => Ok(Expr::Bool(false)),
             TokenKind::Identifier => Ok(Expr::Val(self.expect_ident()?)),
-            _ => {
-                let fun = self.expr()?;
-                let arg = self.expr()?;
-                Ok(Expr::App(Box::new(fun), Box::new(arg)))
-            }
+            _ => Err(format!("Unexpected token :{:?}", self.peek_kind())),
         }
     }
 }
