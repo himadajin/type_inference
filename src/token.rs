@@ -12,6 +12,8 @@ pub enum TokenKind {
     Fun,
     RArrow,
 
+    True,
+    False,
     Identifier,
 
     EOF,

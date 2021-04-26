@@ -71,7 +71,7 @@ impl From<AExpr> for Type {
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Expr {
-    Num(i32),
+    Num(u32),
     Bool(bool),
     Val(String),
     BinOp(Box<Expr>, Op, Box<Expr>),
@@ -115,7 +115,7 @@ pub fn collect_ids(ids: &mut HashSet<String>, expr: &Expr) {
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum AExpr {
-    Num(i32, Type),
+    Num(u32, Type),
     Bool(bool, Type),
     Val(String, Type),
     BinOp(Box<AExpr>, Op, Box<AExpr>, Type),

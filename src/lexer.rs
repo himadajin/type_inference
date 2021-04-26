@@ -51,6 +51,8 @@ impl<'a> Lexer<'a> {
                 Some(word) => {
                     return match word.as_str() {
                         "fun" => Token::new(TokenKind::Fun, word),
+                        "true" => Token::new(TokenKind::True, word),
+                        "false" => Token::new(TokenKind::False, word),
                         _ => Token::new(TokenKind::Identifier, word),
                     }
                 }
@@ -216,6 +218,31 @@ mod tests {
                 Token::new(TokenKind::Plus, '+'),
                 Token::new(TokenKind::Num, "1"),
                 Token::new(TokenKind::CloseParen, ')'),
+                Token::new(TokenKind::EOF, "\0"),
+            ],
+        );
+    }
+
+    #[test]
+    fn tokenize_bool() {
+        test_lexer(
+            "fun x -> true",
+            vec![
+                Token::new(TokenKind::Fun, "fun"),
+                Token::new(TokenKind::Identifier, "x"),
+                Token::new(TokenKind::RArrow, "->"),
+                Token::new(TokenKind::True, "true"),
+                Token::new(TokenKind::EOF, "\0"),
+            ],
+        );
+
+        test_lexer(
+            "fun x -> false",
+            vec![
+                Token::new(TokenKind::Fun, "fun"),
+                Token::new(TokenKind::Identifier, "x"),
+                Token::new(TokenKind::RArrow, "->"),
+                Token::new(TokenKind::False, "false"),
                 Token::new(TokenKind::EOF, "\0"),
             ],
         );
