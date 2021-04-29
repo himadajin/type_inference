@@ -1,6 +1,5 @@
 use std::{collections::HashSet, convert::From, fmt};
 
-
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum Op {
     Add,
@@ -28,7 +27,8 @@ impl fmt::Display for Op {
 pub enum Type {
     Num,
     Bool,
-    Fun(Box<Type>, Box<Type>),
+    Fun { arg: Box<Type>, ret: Box<Type> },
+
     T(String),
 }
 
@@ -37,7 +37,7 @@ impl fmt::Display for Type {
         match self {
             Type::Num => write!(f, "num"),
             Type::Bool => write!(f, "bool"),
-            Type::Fun(arg, ret) => write!(f, "({}->{})", arg.as_ref(), ret.as_ref()),
+            Type::Fun { arg, ret } => write!(f, "{}->{}", arg.as_ref(), ret.as_ref()),
             Type::T(s) => write!(f, "{}", s),
         }
     }
@@ -123,15 +123,26 @@ pub enum AExpr {
     App(Box<AExpr>, Box<AExpr>, Type),
 }
 
-// impl fmt::Display for AExpr {
-//     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-//         match self {
-//             AExpr::Num(_, _) => {}
-//             AExpr::Bool(_, _) => {}
-//             AExpr::Val(_, _) => {}
-//             AExpr::BinOp(_, _, _, _) => {}
-//             AExpr::Fun(_, _, _) => {}
-//             AExpr::App(_, _, _) => {}
-//         }
-//     }
-// }
+impl fmt::Display for AExpr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            AExpr::Num(n, t) => write!(f, "{}:{}", n, t),
+            AExpr::Bool(b, t) => write!(f, "{}:{}", b, t),
+            AExpr::Val(id, t) => write!(f, "{}:{}", id, t),
+            AExpr::BinOp(lhs, op, rhs, t) => {
+                write!(f, "({} {} {} ):{}", lhs.as_ref(), op, rhs.as_ref(), t)
+            }
+            AExpr::Fun(arg, expr, t) => match t {
+                Type::Fun {
+                    arg: argt,
+                    ret: rest,
+                } => {
+                    write!(f, "(fun {}:{} -> {} ):{}", arg, argt, expr.as_ref(), rest)
+                }
+                _ => panic!("not a function"),
+            },
+
+            AExpr::App(fun, arg, t) => write!(f, "(({} ) {} ):{}", fun, arg, t),
+        }
+    }
+}

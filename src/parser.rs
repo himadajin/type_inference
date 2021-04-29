@@ -145,4 +145,56 @@ mod tests {
             parse("1 * 2")
         );
     }
+
+    #[test]
+    fn parse_fun() {
+        assert_eq!(
+            Expr::Fun("x".to_string(), Box::new(Expr::Val("x".to_string()))),
+            parse("(fun x -> x)")
+        );
+
+        assert_eq!(
+            Expr::Fun(
+                "x".to_string(),
+                Box::new(Expr::Fun(
+                    "y".to_string(),
+                    Box::new(Expr::BinOp(
+                        Box::new(Expr::Val("x".to_string())),
+                        Op::Add,
+                        Box::new(Expr::Val("y".to_string()))
+                    ))
+                ))
+            ),
+            parse("(fun x -> (fun y -> x + y))")
+        );
+    }
+
+    #[test]
+    fn parse_app() {
+        assert_eq!(
+            Expr::App(
+                Box::new(Expr::Fun(
+                    "x".to_string(),
+                    Box::new(Expr::Val("x".to_string()))
+                )),
+                Box::new(Expr::Num(1))
+            ),
+            parse("(fun x -> x) 1")
+        );
+
+        assert_eq!(
+            Expr::BinOp(
+                Box::new(Expr::App(
+                    Box::new(Expr::Fun(
+                        "x".to_string(),
+                        Box::new(Expr::Val("x".to_string()))
+                    )),
+                    Box::new(Expr::Val("x".to_string()))
+                )),
+                Op::Add,
+                Box::new(Expr::Num(1))
+            ),
+            parse("(fun x -> x) x + 1")
+        )
+    }
 }

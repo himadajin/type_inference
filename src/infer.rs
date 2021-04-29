@@ -58,7 +58,10 @@ pub fn annotate(expr: &Expr, env: &mut Environment) -> AExpr {
             AExpr::Fun(
                 arg.clone(),
                 Box::new(aexpr),
-                Type::Fun(Box::new(arg_type), Box::new(env.new_type_param())),
+                Type::Fun {
+                    arg: Box::new(arg_type),
+                    ret: Box::new(env.new_type_param()),
+                },
             )
         }
         Expr::App(fun, arg) => {
@@ -69,58 +72,70 @@ pub fn annotate(expr: &Expr, env: &mut Environment) -> AExpr {
     }
 }
 
-pub fn collect_aexpr(constraint: &mut Vec<(Type, Type)>, aexpr: &AExpr) {
+pub fn collect_aexpr(constraints: &mut Vec<(Type, Type)>, aexpr: &AExpr) {
     match aexpr {
         AExpr::BinOp(lhs, op, rhs, tp) => {
+            collect_aexpr(constraints, lhs);
+            collect_aexpr(constraints, rhs);
+
             let lhs_tp: &Type = lhs.as_ref().into();
             let rhs_tp: &Type = rhs.as_ref().into();
 
             match op {
                 Op::Add | Op::Mul => {
-                    constraint.push((lhs_tp.clone(), Type::Num));
-                    constraint.push((rhs_tp.clone(), Type::Num));
-                    constraint.push((tp.clone(), Type::Num));
+                    constraints.push((lhs_tp.clone(), Type::Num));
+                    constraints.push((rhs_tp.clone(), Type::Num));
+                    constraints.push((tp.clone(), Type::Num));
                 }
                 Op::Gt | Op::Lt => {
-                    constraint.push((lhs_tp.clone(), rhs_tp.clone()));
-                    constraint.push((tp.clone(), Type::Bool));
+                    constraints.push((lhs_tp.clone(), Type::Num));
+                    constraints.push((rhs_tp.clone(), Type::Num));
+                    constraints.push((tp.clone(), Type::Bool));
                 }
 
                 Op::And | Op::Or => {
-                    constraint.push((lhs_tp.clone(), Type::Bool));
-                    constraint.push((rhs_tp.clone(), Type::Bool));
-                    constraint.push((tp.clone(), Type::Bool));
+                    constraints.push((lhs_tp.clone(), Type::Bool));
+                    constraints.push((rhs_tp.clone(), Type::Bool));
+                    constraints.push((tp.clone(), Type::Bool));
                 }
             }
         }
-        AExpr::Fun(_, aexpr, tp) => match tp {
-            Type::Fun(_, ret_tp) => {
-                collect_aexpr(constraint, aexpr);
-
-                let aexpr_tp: &Type = aexpr.as_ref().into();
-                constraint.push((aexpr_tp.clone(), ret_tp.as_ref().clone()));
+        AExpr::Fun(_, ae, tp) => {
+            collect_aexpr(constraints, ae);
+            match tp {
+                Type::Fun {
+                    arg: _,
+                    ret: ret_tp,
+                } => {
+                    let ae_tp: &Type = ae.as_ref().into();
+                    constraints.push((ae_tp.clone(), ret_tp.as_ref().clone()));
+                }
+                _ => panic!("not a function"),
             }
-            _ => panic!("not a function"),
-        },
-        AExpr::App(fun, arg, app_tp) => {
+        }
+        AExpr::App(fun, arg, t) => {
+            collect_aexpr(constraints, &fun);
+            collect_aexpr(constraints, &arg);
+
             let fun_tp: &Type = fun.as_ref().into();
             match fun_tp {
-                Type::Fun(fun_arg_tp, fun_ret_tp) => {
-                    collect_aexpr(constraint, &fun);
-                    collect_aexpr(constraint, &arg);
+                Type::Fun {
+                    arg: argt,
+                    ret: ret_type,
+                } => {
+                    constraints.push((t.clone(), ret_type.as_ref().clone()));
 
                     let arg_tp: &Type = arg.as_ref().into();
-                    constraint.push((fun_arg_tp.as_ref().clone(), arg_tp.clone()));
-                    constraint.push((app_tp.clone(), fun_ret_tp.as_ref().clone()));
+                    constraints.push((argt.as_ref().clone(), arg_tp.clone()));
                 }
                 Type::T(_) => {
-                    collect_aexpr(constraint, &fun);
-                    collect_aexpr(constraint, &arg);
-
-                    let argt: &Type = arg.as_ref().into();
-                    constraint.push((
+                    let arg_tp: &Type = arg.as_ref().into();
+                    constraints.push((
                         fun_tp.clone(),
-                        Type::Fun(Box::new(argt.clone()), Box::new(app_tp.clone())),
+                        Type::Fun {
+                            arg: Box::new(arg_tp.clone()),
+                            ret: Box::new(t.clone()),
+                        },
                     ));
                 }
                 _ => panic!("incorrect function application"),
@@ -140,10 +155,13 @@ pub fn substitute(u: Type, x: &String, t: Type) -> Type {
                 Type::T(c)
             }
         }
-        Type::Fun(t1, t2) => {
+        Type::Fun { arg: t1, ret: t2 } => {
             let ts1 = substitute(u.clone(), x, t1.as_ref().clone());
             let ts2 = substitute(u.clone(), x, t2.as_ref().clone());
-            Type::Fun(Box::new(ts1), Box::new(ts2))
+            Type::Fun {
+                arg: Box::new(ts1),
+                ret: Box::new(ts2),
+            }
         }
     }
 }
@@ -171,6 +189,12 @@ pub fn unify_one(tp1: Type, tp2: Type) -> Vec<(String, Type)> {
     match (tp1, tp2) {
         (Type::Num, Type::Num) | (Type::Bool, Type::Bool) => Vec::new(),
         (Type::T(x), z) | (z, Type::T(x)) => vec![(x, z)],
+        (Type::Fun { arg: a, ret: b }, Type::Fun { arg: x, ret: y }) => {
+            let mut res = Vec::new();
+            res.append(&mut unify_one(a.as_ref().clone(), x.as_ref().clone()));
+            res.append(&mut unify_one(b.as_ref().clone(), y.as_ref().clone()));
+            res
+        }
 
         (tp1, tp2) => panic!("mismatched types: ({:?}, {:?})", tp1, tp2),
     }
@@ -202,8 +226,14 @@ pub fn infer(mut environment: Environment, expr: Expr) -> AExpr {
     environment.add_ids(ids);
 
     let aexpr = annotate(&expr, &mut environment);
+    println!("annotated: {}", aexpr);
     let mut constraints = Vec::new();
     collect_aexpr(&mut constraints, &aexpr);
+    println!("constraints: ", );
+
+    for (t1, t2) in &constraints {
+        println!("{} = {}", t1, t2);
+    }
 
     let subs = unify(constraints);
 

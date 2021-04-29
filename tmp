@@ -1,0 +1,25 @@
+BinOp(
+    App(
+        Fun(
+            "x", 
+            BinOp(
+                Val(
+                    "x", 
+                    T("a0")
+                ), 
+                Gt, 
+                Num(1, Num), 
+                T("a1")
+            ), 
+            Fun(
+                T("a0"),
+                T("a2")
+            )
+        ), 
+        Num(1, Num), 
+        Num
+    ), 
+    Add, 
+    Num(1, Num),
+    Num
+)
