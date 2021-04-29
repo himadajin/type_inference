@@ -4,8 +4,26 @@ use crate::ast::{Expr, Op};
 grammar;
 
 pub Expr: Expr = {
-    Add,
+    Or,
 };
+
+Or: Expr = {
+    <lhs: Or> "||" <rhs: And> => Expr::BinOp(Box::new(lhs), Op::Or, Box::new(rhs)),
+    And,
+}
+
+
+And: Expr = {
+    <lhs: And> "&&" <rhs: Relational> => Expr::BinOp(Box::new(lhs), Op::And, Box::new(rhs)),
+    Relational,
+};
+
+
+Relational: Expr = {
+    <lhs: Add> "<" <rhs: Add> => Expr::BinOp(Box::new(lhs), Op::Lt, Box::new(rhs)),
+    <lhs: Add> ">" <rhs: Add> => Expr::BinOp(Box::new(lhs), Op::Gt, Box::new(rhs)),
+    Add,
+}
 
 Add: Expr = {
     <lhs: Add> "+" <rhs: Mul> => Expr::BinOp(Box::new(lhs), Op::Add, Box::new(rhs)),
@@ -20,14 +38,26 @@ Mul: Expr = {
 Primary: Expr = {
     Num => Expr::Num(<>),
     Bool => Expr::Bool(<>),
+    Ident => Expr::Val(<>),
     "(" <Expr> ")",
 };
 
 Num: u32 = {
-    r"[0-9]+" => u32::from_str(<>).unwrap()
+    r"[0-9]+" => u32::from_str(<>).unwrap(),
 };
 
 Bool: bool = {
     r"true" => true,
     r"false" => false,
+}
+
+Ident: String = {
+    r"[a-zA-Z][a-zA-Z0-9]*" => <>.to_string(),
+}
+
+match {
+    r"true",
+    r"false",
+} else {
+    _,
 }
