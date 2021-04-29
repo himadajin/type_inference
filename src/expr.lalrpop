@@ -3,23 +3,23 @@ use crate::ast::{Expr, Op};
 
 grammar;
 
-pub Expr: Box<Expr> = {
+pub Expr: Expr = {
     Add,
 };
 
-Add: Box<Expr> = {
-    <lhs: Add> "+" <rhs: Mul> => Box::new(Expr::BinOp(lhs, Op::Add, rhs)),
+Add: Expr = {
+    <lhs: Add> "+" <rhs: Mul> => Expr::BinOp(Box::new(lhs), Op::Add, Box::new(rhs)),
     Mul,
 };
 
-Mul: Box<Expr> = {
-    <lhs: Mul> "*" <rhs: Primary> => Box::new(Expr::BinOp(lhs, Op::Mul, rhs)),
+Mul: Expr = {
+    <lhs: Mul> "*" <rhs: Primary> => Expr::BinOp(Box::new(lhs), Op::Mul, Box::new(rhs)),
     Primary,
 };
 
-Primary: Box<Expr> = {
-    Num => Box::new(Expr::Num(<>)),
-    Bool => Box::new(Expr::Bool(<>)),
+Primary: Expr = {
+    Num => Expr::Num(<>),
+    Bool => Expr::Bool(<>),
     "(" <Expr> ")",
 };
 
