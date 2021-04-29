@@ -35,4 +35,16 @@ mod tests {
             parse("1+2")
         );
     }
+
+    #[test]
+    fn parse_mul() {
+        assert_eq!(
+            Box::new(Expr::BinOp(
+                Box::new(Expr::Num(1)),
+                Op::Mul,
+                Box::new(Expr::Num(2)),
+            )),
+            parse("1*2")
+        );
+    }
 }
