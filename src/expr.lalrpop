@@ -1,0 +1,33 @@
+use std::str::FromStr;
+use crate::ast::{Expr, Op};
+
+grammar;
+
+pub Expr: Box<Expr> = {
+    Add,
+};
+
+Add: Box<Expr> = {
+    <lhs: Add> "+" <rhs: Mul> => Box::new(Expr::BinOp(lhs, Op::Add, rhs)),
+    Mul,
+};
+
+Mul: Box<Expr> = {
+    <lhs: Mul> "*" <rhs: Primary> => Box::new(Expr::BinOp(lhs, Op::Mul, rhs)),
+    Primary,
+};
+
+Primary: Box<Expr> = {
+    Num => Box::new(Expr::Num(<>)),
+    Bool => Box::new(Expr::Bool(<>)),
+    "(" <Expr> ")",
+};
+
+Num: u32 = {
+    r"[0-9]+" => u32::from_str(<>).unwrap()
+};
+
+Bool: bool = {
+    r"true" => true,
+    r"false" => false,
+}
