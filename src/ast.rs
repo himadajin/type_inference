@@ -1,7 +1,7 @@
 use std::{collections::HashSet, convert::From, fmt};
 
 #[derive(Debug, PartialEq, Clone, Copy)]
-pub enum Op {
+pub enum BinOp {
     Add,
     Mul,
     Gt,
@@ -10,15 +10,15 @@ pub enum Op {
     Or,
 }
 
-impl fmt::Display for Op {
+impl fmt::Display for BinOp {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Op::Add => write!(f, "+"),
-            Op::Mul => write!(f, "*"),
-            Op::Gt => write!(f, ">"),
-            Op::Lt => write!(f, "<"),
-            Op::And => write!(f, "&&"),
-            Op::Or => write!(f, "||"),
+            BinOp::Add => write!(f, "+"),
+            BinOp::Mul => write!(f, "*"),
+            BinOp::Gt => write!(f, ">"),
+            BinOp::Lt => write!(f, "<"),
+            BinOp::And => write!(f, "&&"),
+            BinOp::Or => write!(f, "||"),
         }
     }
 }
@@ -77,7 +77,7 @@ pub enum Expr {
     Num(u32),
     Bool(bool),
     Val(String),
-    BinOp(Box<Expr>, Op, Box<Expr>),
+    BinOp(Box<Expr>, BinOp, Box<Expr>),
     Fun(String, Box<Expr>),
     App(Box<Expr>, Box<Expr>),
 }
@@ -121,7 +121,7 @@ pub enum AExpr {
     Num(u32, Type),
     Bool(bool, Type),
     Val(String, Type),
-    BinOp(Box<AExpr>, Op, Box<AExpr>, Type),
+    BinOp(Box<AExpr>, BinOp, Box<AExpr>, Type),
     Fun(String, Box<AExpr>, Type),
     App(Box<AExpr>, Box<AExpr>, Type),
 }

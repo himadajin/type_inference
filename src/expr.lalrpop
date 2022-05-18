@@ -1,5 +1,5 @@
 use std::str::FromStr;
-use crate::ast::{Expr, Op};
+use crate::ast::{Expr, BinOp};
 
 grammar;
 
@@ -9,30 +9,30 @@ pub Expr: Expr = {
 };
 
 Or: Expr = {
-    <lhs: Or> "||" <rhs: And> => Expr::BinOp(Box::new(lhs), Op::Or, Box::new(rhs)),
+    <lhs: Or> "||" <rhs: And> => Expr::BinOp(Box::new(lhs), BinOp::Or, Box::new(rhs)),
     And,
 }
 
 
 And: Expr = {
-    <lhs: And> "&&" <rhs: Relational> => Expr::BinOp(Box::new(lhs), Op::And, Box::new(rhs)),
+    <lhs: And> "&&" <rhs: Relational> => Expr::BinOp(Box::new(lhs), BinOp::And, Box::new(rhs)),
     Relational,
 };
 
 
 Relational: Expr = {
-    <lhs: Add> "<" <rhs: Add> => Expr::BinOp(Box::new(lhs), Op::Lt, Box::new(rhs)),
-    <lhs: Add> ">" <rhs: Add> => Expr::BinOp(Box::new(lhs), Op::Gt, Box::new(rhs)),
+    <lhs: Add> "<" <rhs: Add> => Expr::BinOp(Box::new(lhs), BinOp::Lt, Box::new(rhs)),
+    <lhs: Add> ">" <rhs: Add> => Expr::BinOp(Box::new(lhs), BinOp::Gt, Box::new(rhs)),
     Add,
 }
 
 Add: Expr = {
-    <lhs: Add> "+" <rhs: Mul> => Expr::BinOp(Box::new(lhs), Op::Add, Box::new(rhs)),
+    <lhs: Add> "+" <rhs: Mul> => Expr::BinOp(Box::new(lhs), BinOp::Add, Box::new(rhs)),
     Mul,
 };
 
 Mul: Expr = {
-    <lhs: Mul> "*" <rhs: App> => Expr::BinOp(Box::new(lhs), Op::Mul, Box::new(rhs)),
+    <lhs: Mul> "*" <rhs: App> => Expr::BinOp(Box::new(lhs), BinOp::Mul, Box::new(rhs)),
     App,
 };
 

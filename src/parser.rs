@@ -4,7 +4,7 @@ lalrpop_mod!(pub expr);
 
 #[cfg(test)]
 mod tests {
-    use crate::ast::{Expr, Op};
+    use crate::ast::{Expr, BinOp};
     use crate::parser::expr;
 
     fn parse(input: &str) -> Expr {
@@ -35,7 +35,7 @@ mod tests {
         assert_eq!(
             Expr::BinOp(
                 Box::new(Expr::Bool(true)),
-                Op::And,
+                BinOp::And,
                 Box::new(Expr::Bool(false)),
             ),
             parse("true && false")
@@ -47,7 +47,7 @@ mod tests {
         assert_eq!(
             Expr::BinOp(
                 Box::new(Expr::Bool(true)),
-                Op::Or,
+                BinOp::Or,
                 Box::new(Expr::Bool(false)),
             ),
             parse("true || false")
@@ -57,12 +57,12 @@ mod tests {
     #[test]
     fn parse_relational() {
         assert_eq!(
-            Expr::BinOp(Box::new(Expr::Num(1)), Op::Lt, Box::new(Expr::Num(2)),),
+            Expr::BinOp(Box::new(Expr::Num(1)), BinOp::Lt, Box::new(Expr::Num(2)),),
             parse("1 < 2")
         );
 
         assert_eq!(
-            Expr::BinOp(Box::new(Expr::Num(1)), Op::Gt, Box::new(Expr::Num(2)),),
+            Expr::BinOp(Box::new(Expr::Num(1)), BinOp::Gt, Box::new(Expr::Num(2)),),
             parse("1 > 2")
         );
     }
@@ -72,10 +72,10 @@ mod tests {
         assert_eq!(
             Expr::BinOp(
                 Box::new(Expr::Bool(true)),
-                Op::Or,
+                BinOp::Or,
                 Box::new(Expr::BinOp(
                     Box::new(Expr::Bool(false)),
-                    Op::And,
+                    BinOp::And,
                     Box::new(Expr::Bool(true)),
                 )),
             ),
@@ -86,10 +86,10 @@ mod tests {
             Expr::BinOp(
                 Box::new(Expr::BinOp(
                     Box::new(Expr::Bool(true)),
-                    Op::Or,
+                    BinOp::Or,
                     Box::new(Expr::Bool(false)),
                 )),
-                Op::And,
+                BinOp::And,
                 Box::new(Expr::Bool(true)),
             ),
             parse("(true || false) && true"),
@@ -99,13 +99,13 @@ mod tests {
             Expr::BinOp(
                 Box::new(Expr::BinOp(
                     Box::new(Expr::Num(1)),
-                    Op::Lt,
+                    BinOp::Lt,
                     Box::new(Expr::Num(2)),
                 )),
-                Op::And,
+                BinOp::And,
                 Box::new(Expr::BinOp(
                     Box::new(Expr::Num(3)),
-                    Op::Lt,
+                    BinOp::Lt,
                     Box::new(Expr::Num(4)),
                 )),
             ),
@@ -116,13 +116,13 @@ mod tests {
             Expr::BinOp(
                 Box::new(Expr::BinOp(
                     Box::new(Expr::Num(1)),
-                    Op::Add,
+                    BinOp::Add,
                     Box::new(Expr::Num(2)),
                 )),
-                Op::Lt,
+                BinOp::Lt,
                 Box::new(Expr::BinOp(
                     Box::new(Expr::Num(3)),
-                    Op::Add,
+                    BinOp::Add,
                     Box::new(Expr::Num(4)),
                 )),
             ),
@@ -133,7 +133,7 @@ mod tests {
     #[test]
     fn parse_add() {
         assert_eq!(
-            Expr::BinOp(Box::new(Expr::Num(1)), Op::Add, Box::new(Expr::Num(2)),),
+            Expr::BinOp(Box::new(Expr::Num(1)), BinOp::Add, Box::new(Expr::Num(2)),),
             parse("1 + 2")
         );
     }
@@ -141,7 +141,7 @@ mod tests {
     #[test]
     fn parse_mul() {
         assert_eq!(
-            Expr::BinOp(Box::new(Expr::Num(1)), Op::Mul, Box::new(Expr::Num(2)),),
+            Expr::BinOp(Box::new(Expr::Num(1)), BinOp::Mul, Box::new(Expr::Num(2)),),
             parse("1 * 2")
         );
     }
@@ -160,7 +160,7 @@ mod tests {
                     "y".to_string(),
                     Box::new(Expr::BinOp(
                         Box::new(Expr::Val("x".to_string())),
-                        Op::Add,
+                        BinOp::Add,
                         Box::new(Expr::Val("y".to_string()))
                     ))
                 ))
@@ -191,7 +191,7 @@ mod tests {
                     )),
                     Box::new(Expr::Val("x".to_string()))
                 )),
-                Op::Add,
+                BinOp::Add,
                 Box::new(Expr::Num(1))
             ),
             parse("(fun x -> x) x + 1")

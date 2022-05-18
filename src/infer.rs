@@ -1,7 +1,7 @@
 use core::panic;
 use std::collections::{HashMap, HashSet};
 
-use crate::ast::{collect_ids, AExpr, Expr, Op, TyId, Type};
+use crate::ast::{collect_ids, AExpr, Expr, BinOp, TyId, Type};
 
 pub struct Environment {
     ids: HashMap<String, Type>,
@@ -82,18 +82,18 @@ pub fn collect_aexpr(constraints: &mut Vec<(Type, Type)>, aexpr: &AExpr) {
             let rhs_tp: &Type = rhs.as_ref().into();
 
             match op {
-                Op::Add | Op::Mul => {
+                BinOp::Add | BinOp::Mul => {
                     constraints.push((lhs_tp.clone(), Type::Num));
                     constraints.push((rhs_tp.clone(), Type::Num));
                     constraints.push((tp.clone(), Type::Num));
                 }
-                Op::Gt | Op::Lt => {
+                BinOp::Gt | BinOp::Lt => {
                     constraints.push((lhs_tp.clone(), Type::Num));
                     constraints.push((rhs_tp.clone(), Type::Num));
                     constraints.push((tp.clone(), Type::Bool));
                 }
 
-                Op::And | Op::Or => {
+                BinOp::And | BinOp::Or => {
                     constraints.push((lhs_tp.clone(), Type::Bool));
                     constraints.push((rhs_tp.clone(), Type::Bool));
                     constraints.push((tp.clone(), Type::Bool));
