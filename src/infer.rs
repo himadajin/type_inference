@@ -1,7 +1,10 @@
 use core::panic;
 use std::collections::{HashMap, HashSet};
 
-use crate::ast::{collect_ids, AExpr, BinOp, Expr, TyId, Type};
+use crate::{
+    ast::{collect_ids, AExpr, BinOp, Expr, TyId, Type},
+    result::{InferOperation, InferResult, UnifyingStep},
+};
 
 pub struct Environment {
     ids: HashMap<String, Type>,
@@ -166,18 +169,34 @@ pub fn substitute(u: Type, x: TyId, t: Type) -> Type {
     }
 }
 
-pub fn apply(subs: &Vec<(TyId, Type)>, t: Type) -> Type {
-    subs.iter()
-        .fold(t, |acc, (x, u)| substitute(u.clone(), *x, acc))
+pub fn apply(operations: &mut Vec<InferOperation>, subs: &Vec<(TyId, Type)>, t: Type) -> Type {
+    let result = subs
+        .iter()
+        .fold(t.clone(), |acc, (x, u)| substitute(u.clone(), *x, acc));
+    operations.push(InferOperation::Apply(
+        subs.clone(),
+        t.clone(),
+        result.clone(),
+    ));
+    result
 }
 
-pub fn unify(mut constraints: Vec<(Type, Type)>) -> Vec<(TyId, Type)> {
+pub fn unify(
+    operations: &mut Vec<InferOperation>,
+    constraints: &mut Vec<(Type, Type)>,
+) -> Vec<(TyId, Type)> {
+    operations.push(InferOperation::Unify(constraints.clone()));
     match constraints.pop() {
         Some((x, y)) => {
-            let mut t2 = unify(constraints);
-            let mut t1 = unify_one(apply(&t2, x), apply(&t2, y));
+            let mut t2 = unify(operations, constraints);
+            let mut t1 = {
+                let tp1 = apply(operations, &t2, x.clone());
+                let tp2 = apply(operations, &t2, y.clone());
+                unify_one(operations, tp1, tp2)
+            };
 
             t2.append(&mut t1);
+
             t2
         }
 
@@ -185,57 +204,77 @@ pub fn unify(mut constraints: Vec<(Type, Type)>) -> Vec<(TyId, Type)> {
     }
 }
 
-pub fn unify_one(tp1: Type, tp2: Type) -> Vec<(TyId, Type)> {
-    match (tp1, tp2) {
+pub fn unify_one(operations: &mut Vec<InferOperation>, tp1: Type, tp2: Type) -> Vec<(TyId, Type)> {
+    let result = match (tp1.clone(), tp2.clone()) {
         (Type::Num, Type::Num) | (Type::Bool, Type::Bool) => Vec::new(),
         (Type::TyVar(x), z) | (z, Type::TyVar(x)) => vec![(x, z)],
         (Type::Fun { arg: a, ret: b }, Type::Fun { arg: x, ret: y }) => {
             let mut res = Vec::new();
-            res.append(&mut unify_one(a.as_ref().clone(), x.as_ref().clone()));
-            res.append(&mut unify_one(b.as_ref().clone(), y.as_ref().clone()));
+            res.append(&mut unify_one(
+                operations,
+                a.as_ref().clone(),
+                x.as_ref().clone(),
+            ));
+            res.append(&mut unify_one(
+                operations,
+                b.as_ref().clone(),
+                y.as_ref().clone(),
+            ));
             res
         }
 
         (tp1, tp2) => panic!("mismatched types: ({:?}, {:?})", tp1, tp2),
-    }
+    };
+    operations.push(InferOperation::UnifyOne(tp1, tp2, result.clone()));
+
+    result
 }
 
 pub fn apply_aexpr(subs: &Vec<(TyId, Type)>, aexpr: AExpr) -> AExpr {
     match aexpr {
-        AExpr::Num(n, t) => AExpr::Num(n, apply(subs, t)),
-        AExpr::Bool(b, t) => AExpr::Bool(b, apply(subs, t)),
-        AExpr::Val(s, t) => AExpr::Val(s, apply(subs, t)),
+        AExpr::Num(n, t) => AExpr::Num(n, apply(&mut Vec::new(), subs, t)),
+        AExpr::Bool(b, t) => AExpr::Bool(b, apply(&mut Vec::new(), subs, t)),
+        AExpr::Val(s, t) => AExpr::Val(s, apply(&mut Vec::new(), subs, t)),
         AExpr::BinOp(lhs, op, rhs, t) => AExpr::BinOp(
             Box::new(apply_aexpr(subs, *lhs)),
             op,
             Box::new(apply_aexpr(subs, *rhs)),
-            apply(subs, t),
+            apply(&mut Vec::new(), subs, t),
         ),
-        AExpr::Fun(id, e, t) => AExpr::Fun(id, Box::new(apply_aexpr(subs, *e)), apply(subs, t)),
+        AExpr::Fun(id, e, t) => AExpr::Fun(
+            id,
+            Box::new(apply_aexpr(subs, *e)),
+            apply(&mut Vec::new(), subs, t),
+        ),
         AExpr::App(fun, arg, t) => AExpr::App(
             Box::new(apply_aexpr(subs, *fun)),
             Box::new(apply_aexpr(subs, *arg)),
-            apply(subs, t),
+            apply(&mut Vec::new(), subs, t),
         ),
     }
 }
 
-pub fn infer(mut environment: Environment, expr: Expr) -> AExpr {
+pub fn infer(mut environment: Environment, expr: Expr) -> InferResult {
     let mut ids = HashSet::new();
     collect_ids(&mut ids, &expr);
     environment.add_ids(ids);
 
     let aexpr = annotate(&expr, &mut environment);
-    println!("annotated:\n    {}", aexpr.to_pretty(8));
+
     let mut constraints = Vec::new();
     collect_aexpr(&mut constraints, &aexpr);
-    println!("constraints: ",);
+    let constraints_result = constraints.clone();
 
-    for (t1, t2) in &constraints {
-        println!("    {} = {}", t1.to_pretty(8), t2.to_pretty(8));
+    let mut operations = Vec::new();
+    let subs = unify(&mut operations, &mut constraints);
+
+    let result = apply_aexpr(&subs, aexpr.clone());
+
+    InferResult {
+        input: expr,
+        annotated: aexpr,
+        constraints: constraints_result,
+        operations,
+        output: result,
     }
-
-    let subs = unify(constraints);
-
-    apply_aexpr(&subs, aexpr)
 }
