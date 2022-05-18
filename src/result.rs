@@ -30,7 +30,9 @@ impl InferProcess {
                 RcDoc::intersperse(lines, Doc::hardline())
                     .nest(4)
                     .append(RcDoc::line())
-                    .append("}"),
+                    .append("}")
+                    .append(RcDoc::space())
+                    .append(self.operation.to_doc_operation()),
             )
         }
     }
