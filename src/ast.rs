@@ -50,19 +50,6 @@ pub enum Fixity {
     None,
 }
 
-impl fmt::Display for BinOp {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            BinOp::Add => write!(f, "+"),
-            BinOp::Mul => write!(f, "*"),
-            BinOp::Gt => write!(f, ">"),
-            BinOp::Lt => write!(f, "<"),
-            BinOp::And => write!(f, "&&"),
-            BinOp::Or => write!(f, "||"),
-        }
-    }
-}
-
 #[derive(Debug, PartialEq, Clone)]
 pub enum Type {
     Num,
@@ -74,6 +61,53 @@ pub enum Type {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TyId(pub u32);
+
+impl Type {
+    fn precedence(&self) -> i8 {
+        match &self {
+            Type::Num | Type::Bool | Type::TyVar(_) => PREC_PAREN,
+            Type::Fun { .. } => PREC_CLOSURE,
+        }
+    }
+
+    pub fn to_doc(&self) -> RcDoc<()> {
+        match &self {
+            Type::Num => RcDoc::text("Num"),
+            Type::Bool => RcDoc::text("Bool"),
+            Type::Fun { arg, ret } => {
+                let prec = self.precedence();
+                let (prec_lhs, prec_rhs) = (prec, prec + 1);
+                RcDoc::intersperse(
+                    [
+                        arg.to_doc_maybe_paren(prec_lhs),
+                        RcDoc::text("->"),
+                        ret.to_doc_maybe_paren(prec_rhs),
+                    ],
+                    Doc::Nil,
+                )
+            }
+            Type::TyVar(id) => RcDoc::text("a").append(RcDoc::as_string(id.0)),
+        }
+    }
+
+    fn to_doc_maybe_paren(&self, prec: i8) -> RcDoc<()> {
+        self.to_doc_cond_paren(self.precedence() < prec)
+    }
+
+    fn to_doc_cond_paren(&self, needs_par: bool) -> RcDoc<()> {
+        if needs_par {
+            RcDoc::text("(").append(self.to_doc()).append(")")
+        } else {
+            self.to_doc()
+        }
+    }
+
+    pub fn to_pretty(&self, width: usize) -> String {
+        let mut w = Vec::new();
+        self.to_doc().render(width, &mut w).unwrap();
+        String::from_utf8(w).unwrap()
+    }
+}
 
 impl fmt::Display for Type {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -205,19 +239,6 @@ impl Expr {
     }
 }
 
-impl fmt::Display for Expr {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Expr::Num(n) => write!(f, "{}", n),
-            Expr::Bool(b) => write!(f, "{}", b),
-            Expr::Val(id) => write!(f, "{}", id),
-            Expr::BinOp(lhs, op, rhs) => write!(f, "({} {} {})", lhs.as_ref(), op, rhs.as_ref()),
-            Expr::Fun(arg, expr) => write!(f, "fun {} -> {}", arg, expr.as_ref()),
-            Expr::App(fun, arg) => write!(f, "(({}) {})", fun, arg),
-        }
-    }
-}
-
 pub fn collect_ids(ids: &mut HashSet<String>, expr: &Expr) {
     match expr {
         Expr::Val(id) => {
@@ -249,26 +270,101 @@ pub enum AExpr {
     App(Box<AExpr>, Box<AExpr>, Type),
 }
 
-impl fmt::Display for AExpr {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            AExpr::Num(n, t) => write!(f, "{}:{}", n, t),
-            AExpr::Bool(b, t) => write!(f, "{}:{}", b, t),
-            AExpr::Val(id, t) => write!(f, "{}:{}", id, t),
-            AExpr::BinOp(lhs, op, rhs, t) => {
-                write!(f, "({} {} {} ):{}", lhs.as_ref(), op, rhs.as_ref(), t)
+impl AExpr {
+    pub fn precedence(&self) -> i8 {
+        match &self {
+            AExpr::Num(_, _) | AExpr::Bool(_, _) | AExpr::Val(_, _) | AExpr::App(_, _, _) => {
+                PREC_PAREN
             }
-            AExpr::Fun(arg, expr, t) => match t {
-                Type::Fun {
-                    arg: argt,
-                    ret: rest,
-                } => {
-                    write!(f, "(fun {}:{} -> {} ):{}", arg, argt, expr.as_ref(), rest)
-                }
-                _ => panic!("not a function"),
-            },
-
-            AExpr::App(fun, arg, t) => write!(f, "(({} ) {} ):{}", fun, arg, t),
+            AExpr::BinOp(_, op, _, _) => op.precedence(),
+            AExpr::Fun(_, _, _) => PREC_CLOSURE,
         }
+    }
+
+    pub fn to_doc(&self) -> RcDoc<()> {
+        match self {
+            AExpr::Num(x, ty) => RcDoc::as_string(x)
+                .append(RcDoc::text(":"))
+                .append(ty.to_doc_maybe_paren(PREC_PREFIX)),
+            AExpr::Bool(x, ty) => RcDoc::as_string(x)
+                .append(RcDoc::text(":"))
+                .append(ty.to_doc_maybe_paren(PREC_PREFIX)),
+            AExpr::Val(val, ty) => RcDoc::text(val)
+                .append(RcDoc::text(":"))
+                .append(ty.to_doc_maybe_paren(PREC_PREFIX)),
+            AExpr::BinOp(lhs, op, rhs, ty) => {
+                let prec = op.precedence();
+                let (prec_lhs, prec_rhs) = match op.fixity() {
+                    Fixity::Left => (prec, prec + 1),
+                    Fixity::Right => (prec + 1, prec),
+                    Fixity::None => (prec + 1, prec + 1),
+                };
+
+                RcDoc::text("(")
+                    .append(
+                        RcDoc::intersperse(
+                            [
+                                lhs.to_doc_maybe_paren(prec_lhs),
+                                op.to_doc(),
+                                rhs.to_doc_maybe_paren(prec_rhs),
+                            ],
+                            Doc::space(),
+                        )
+                        .nest(1),
+                    )
+                    .append(RcDoc::text(")"))
+                    .append(":")
+                    .append(ty.to_doc_maybe_paren(PREC_PREFIX))
+            }
+            AExpr::Fun(arg, expr, ty) => RcDoc::text("(")
+                .append(
+                    RcDoc::intersperse(
+                        [
+                            RcDoc::text("fun"),
+                            RcDoc::text(arg),
+                            RcDoc::text("->"),
+                            expr.to_doc(),
+                        ],
+                        Doc::space(),
+                    )
+                    .nest(1)
+                    .group(),
+                )
+                .append(")")
+                .append(":")
+                .append(ty.to_doc_maybe_paren(PREC_PREFIX)),
+
+            AExpr::App(fun, arg, ty) => RcDoc::text("(")
+                .append(RcDoc::intersperse(
+                    [
+                        fun.to_doc_maybe_paren(self.precedence()),
+                        arg.to_doc_maybe_paren(self.precedence()),
+                    ],
+                    Doc::space(),
+                ))
+                .append(")")
+                .append(":")
+                .append(ty.to_doc_maybe_paren(PREC_PREFIX)),
+        }
+    }
+
+    fn to_doc_maybe_paren(&self, prec: i8) -> RcDoc<()> {
+        self.to_doc_cond_paren(self.precedence() < prec)
+    }
+
+    fn to_doc_cond_paren(&self, needs_par: bool) -> RcDoc<()> {
+        if needs_par {
+            RcDoc::text("(")
+                .append(self.to_doc())
+                .append(RcDoc::text(")"))
+        } else {
+            self.to_doc()
+        }
+    }
+
+    pub fn to_pretty(&self, width: usize) -> String {
+        let mut w = Vec::new();
+        self.to_doc().render(width, &mut w).unwrap();
+        String::from_utf8(w).unwrap()
     }
 }

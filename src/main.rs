@@ -13,6 +13,6 @@ fn main() {
     println!("    {}", expr.to_pretty(8));
 
     let aexpr = infer(Environment::new(), expr);
-    println!("result: {}", aexpr);
-    println!("{}", Type::from(aexpr));
+    println!("result:\n    {}", aexpr.to_pretty(8));
+    println!("type:\n    {}", Type::from(aexpr).to_pretty(8));
 }

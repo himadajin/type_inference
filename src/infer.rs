@@ -1,7 +1,7 @@
 use core::panic;
 use std::collections::{HashMap, HashSet};
 
-use crate::ast::{collect_ids, AExpr, Expr, BinOp, TyId, Type};
+use crate::ast::{collect_ids, AExpr, BinOp, Expr, TyId, Type};
 
 pub struct Environment {
     ids: HashMap<String, Type>,
@@ -226,13 +226,13 @@ pub fn infer(mut environment: Environment, expr: Expr) -> AExpr {
     environment.add_ids(ids);
 
     let aexpr = annotate(&expr, &mut environment);
-    println!("annotated: {}", aexpr);
+    println!("annotated:\n    {}", aexpr.to_pretty(8));
     let mut constraints = Vec::new();
     collect_aexpr(&mut constraints, &aexpr);
     println!("constraints: ",);
 
     for (t1, t2) in &constraints {
-        println!("{} = {}", t1, t2);
+        println!("    {} = {}", t1.to_pretty(8), t2.to_pretty(8));
     }
 
     let subs = unify(constraints);
