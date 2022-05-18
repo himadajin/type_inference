@@ -9,7 +9,8 @@ use type_inference::{
 fn main() {
     let arg = args().nth(1).unwrap();
     let expr = expr::ExprParser::new().parse(arg.as_str()).unwrap();
-    // println!("expr: {:?}", expr);
+    println!("expr:");
+    println!("    {}", expr.to_pretty(8));
 
     let aexpr = infer(Environment::new(), expr);
     println!("result: {}", aexpr);
