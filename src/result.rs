@@ -6,50 +6,123 @@ pub struct InferResult {
     pub input: Expr,
     pub annotated: AExpr,
     pub constraints: Vec<(Type, Type)>,
-    pub operations: Vec<InferOperation>,
+    pub process: InferProcess,
     pub output: AExpr,
 }
 
+pub struct InferProcess {
+    pub operation: InferOperation,
+    pub process: Vec<InferProcess>,
+}
+
+impl InferProcess {
+    pub fn to_doc(&self) -> RcDoc<()> {
+        if self.process.is_empty() {
+            self.operation
+                .to_doc_name()
+                .append(Doc::space())
+                .append(self.operation.to_doc_operation())
+        } else {
+            let mut lines = Vec::new();
+            lines.push(
+                self.operation
+                    .to_doc_name()
+                    .append(Doc::space())
+                    .append("{"),
+            );
+            lines.extend(self.process.iter().map(|process| process.to_doc()));
+            lines.push(RcDoc::text("}"));
+            RcDoc::intersperse(lines, Doc::line())
+                .append(Doc::space())
+                .append(self.operation.to_doc_operation())
+                .nest(4)
+        }
+    }
+}
+
 pub enum InferOperation {
-    Unify(Vec<(Type, Type)>),
-    UnifyOne(Type, Type, Vec<(TyId, Type)>),
-    Apply(Vec<(TyId, Type)>, Type, Type),
+    Unify {
+        constraints: Vec<(Type, Type)>,
+        result: Vec<(TyId, Type)>,
+    },
+    UnifyOne {
+        ty1: Type,
+        ty2: Type,
+        result: Vec<(TyId, Type)>,
+    },
+    Apply {
+        substitudes: Vec<(TyId, Type)>,
+        ty: Type,
+        result: Type,
+    },
+    Substitude {
+        u: Type,
+        x: TyId,
+        t: Type,
+        result: Type,
+    },
 }
 
 impl InferOperation {
-    pub fn to_doc(&self) -> RcDoc<()> {
+    pub fn to_doc_name(&self) -> RcDoc<()> {
         match &self {
-            InferOperation::Unify(constraints) => RcDoc::text("Unify:")
-                .append(Doc::space())
-                .append(constraints_to_doc(constraints)),
-            InferOperation::UnifyOne(t1, t2, result) => RcDoc::text("UnifyOne:")
-                .append(Doc::space())
-                .append(RcDoc::intersperse(
-                    [
-                        RcDoc::text("(")
-                            .append(RcDoc::intersperse(
-                                [t1.to_doc(), t2.to_doc()],
-                                RcDoc::text(",").append(Doc::space()),
-                            ))
-                            .append(")"),
-                        RcDoc::text("=>"),
-                        substitudes_to_doc(result),
-                    ],
-                    Doc::space(),
-                )),
+            InferOperation::Unify { .. } => RcDoc::text("Unify"),
+            InferOperation::UnifyOne { .. } => RcDoc::text("UnifyOne"),
+            InferOperation::Apply { .. } => RcDoc::text("Apply"),
+            InferOperation::Substitude { .. } => RcDoc::text("Substitude"),
+        }
+    }
 
-            InferOperation::Apply(subs, ty, result) => RcDoc::text("Apply:")
-                .append(Doc::space())
-                .append(RcDoc::intersperse(
-                    [
-                        substitudes_to_doc(subs),
-                        RcDoc::text("->"),
-                        ty.to_doc(),
-                        RcDoc::text("=>"),
-                        result.to_doc(),
-                    ],
-                    Doc::space(),
-                )),
+    pub fn to_doc_operation(&self) -> RcDoc<()> {
+        match &self {
+            InferOperation::Unify {
+                constraints,
+                result,
+            } => RcDoc::intersperse(
+                [
+                    constraints_to_doc(constraints),
+                    RcDoc::text("=>"),
+                    substitudes_to_doc(result),
+                ],
+                Doc::space(),
+            ),
+            InferOperation::UnifyOne { ty1, ty2, result } => RcDoc::intersperse(
+                [
+                    ty1.to_doc(),
+                    RcDoc::text("<->"),
+                    ty2.to_doc(),
+                    RcDoc::text("=>"),
+                    substitudes_to_doc(result),
+                ],
+                Doc::space(),
+            ),
+            InferOperation::Apply {
+                substitudes,
+                ty,
+                result,
+            } => RcDoc::intersperse(
+                [
+                    ty.to_doc(),
+                    RcDoc::text("->"),
+                    substitudes_to_doc(substitudes),
+                    RcDoc::text("=>"),
+                    result.to_doc(),
+                ],
+                Doc::space(),
+            ),
+            InferOperation::Substitude { u, x, t, result } => RcDoc::intersperse(
+                [
+                    RcDoc::text("(")
+                        .append(RcDoc::intersperse(
+                            [u.to_doc(), x.to_doc(), t.to_doc()],
+                            RcDoc::text(",").append(Doc::space()),
+                        ))
+                        .append(")"),
+                    RcDoc::text("=>"),
+                    result.to_doc(),
+                ],
+                Doc::space(),
+            ),
         }
     }
 }
@@ -86,34 +159,8 @@ impl InferResult {
                         .append(constraints_to_doc(&self.constraints))
                         .nest(offset),
                 ),
-                RcDoc::text("operations").append(
-                    RcDoc::line()
-                        .append(RcDoc::intersperse(
-                            self.operations.iter().enumerate().map(|(nth, operation)| {
-                                RcDoc::as_string(nth)
-                                    .append(":")
-                                    .append(Doc::line())
-                                    .append(operation.to_doc())
-                                    .nest(offset)
-                            }),
-                            Doc::line(),
-                        ))
-                        .nest(offset),
-                ),
-                // RcDoc::text("unifying_steps:").append(
-                //     RcDoc::line()
-                //         .append(RcDoc::intersperse(
-                //             self.unifying_steps.iter().enumerate().map(|(nth, step)| {
-                //                 RcDoc::as_string(nth)
-                //                     .append(":")
-                //                     .append(Doc::line())
-                //                     .append(step.to_doc())
-                //                     .nest(offset)
-                //             }),
-                //             Doc::line(),
-                //         ))
-                //         .nest(offset),
-                // ),
+                RcDoc::text("process")
+                    .append(RcDoc::hardline().append(self.process.to_doc()).nest(offset)),
                 RcDoc::text("output:")
                     .append(RcDoc::hardline().append(self.output.to_doc()).nest(offset)),
             ],

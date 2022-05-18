@@ -7,5 +7,5 @@ fn main() {
     let arg = args().nth(1).unwrap();
     let expr = expr::ExprParser::new().parse(arg.as_str()).unwrap();
     let result = infer(Environment::new(), expr);
-    println!("{}", result.to_pretty(8));
+    println!("{}", result.to_pretty(32));
 }

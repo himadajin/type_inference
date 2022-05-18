@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 
 use crate::{
     ast::{collect_ids, AExpr, BinOp, Expr, TyId, Type},
-    result::{InferOperation, InferResult, UnifyingStep},
+    result::{InferOperation, InferProcess, InferResult},
 };
 
 pub struct Environment {
@@ -148,8 +148,13 @@ pub fn collect_aexpr(constraints: &mut Vec<(Type, Type)>, aexpr: &AExpr) {
     }
 }
 
-pub fn substitute(u: Type, x: TyId, t: Type) -> Type {
-    match t {
+pub fn substitute(u: Type, x: TyId, t: Type) -> (InferProcess, Type) {
+    let mut process = Vec::new();
+    let u_cloned = u.clone();
+    let x_cloned = x.clone();
+    let t_cloned = t.clone();
+
+    let result = match t {
         Type::Num | Type::Bool => t,
         Type::TyVar(v) => {
             if v == x {
@@ -159,40 +164,73 @@ pub fn substitute(u: Type, x: TyId, t: Type) -> Type {
             }
         }
         Type::Fun { arg: t1, ret: t2 } => {
-            let ts1 = substitute(u.clone(), x, t1.as_ref().clone());
-            let ts2 = substitute(u.clone(), x, t2.as_ref().clone());
+            let (p, ts1) = substitute(u.clone(), x, t1.as_ref().clone());
+            process.push(p);
+            let (p, ts2) = substitute(u.clone(), x, t2.as_ref().clone());
+            process.push(p);
             Type::Fun {
                 arg: Box::new(ts1),
                 ret: Box::new(ts2),
             }
         }
-    }
+    };
+
+    (
+        InferProcess {
+            operation: InferOperation::Substitude {
+                u: u_cloned,
+                x: x_cloned,
+                t: t_cloned,
+                result: result.clone(),
+            },
+            process,
+        },
+        result,
+    )
 }
 
-pub fn apply(operations: &mut Vec<InferOperation>, subs: &Vec<(TyId, Type)>, t: Type) -> Type {
-    let result = subs
-        .iter()
-        .fold(t.clone(), |acc, (x, u)| substitute(u.clone(), *x, acc));
-    operations.push(InferOperation::Apply(
-        subs.clone(),
-        t.clone(),
-        result.clone(),
-    ));
-    result
+pub fn apply(subs: &Vec<(TyId, Type)>, t: Type) -> (InferProcess, Type) {
+    let substitudes_clone = subs.clone();
+    let ty_clone = t.clone();
+
+    let (process, result) =
+        subs.iter()
+            .fold((Vec::new(), t.clone()), |(mut process, acc), (x, u)| {
+                let (p, t) = substitute(u.clone(), *x, acc);
+                process.push(p);
+                (process, t)
+            });
+
+    (
+        InferProcess {
+            operation: InferOperation::Apply {
+                substitudes: substitudes_clone,
+                ty: ty_clone,
+                result: result.clone(),
+            },
+            process,
+        },
+        result,
+    )
 }
 
-pub fn unify(
-    operations: &mut Vec<InferOperation>,
-    constraints: &mut Vec<(Type, Type)>,
-) -> Vec<(TyId, Type)> {
-    operations.push(InferOperation::Unify(constraints.clone()));
-    match constraints.pop() {
+pub fn unify(constraints: &mut Vec<(Type, Type)>) -> (InferProcess, Vec<(TyId, Type)>) {
+    let mut process = Vec::new();
+    let constraints_cloned = constraints.clone();
+    let result = match constraints.pop() {
         Some((x, y)) => {
-            let mut t2 = unify(operations, constraints);
+            let (p, mut t2) = unify(constraints);
+            process.push(p);
             let mut t1 = {
-                let tp1 = apply(operations, &t2, x.clone());
-                let tp2 = apply(operations, &t2, y.clone());
-                unify_one(operations, tp1, tp2)
+                let (p, tp1) = apply(&t2, x);
+                process.push(p);
+                let (p, tp2) = apply(&t2, y);
+                process.push(p);
+
+                let (p, result) = unify_one(tp1, tp2);
+                process.push(p);
+
+                result
             };
 
             t2.append(&mut t1);
@@ -201,55 +239,74 @@ pub fn unify(
         }
 
         None => Vec::new(),
-    }
+    };
+
+    (
+        InferProcess {
+            operation: InferOperation::Unify {
+                constraints: constraints_cloned,
+                result: result.clone(),
+            },
+            process,
+        },
+        result,
+    )
 }
 
-pub fn unify_one(operations: &mut Vec<InferOperation>, tp1: Type, tp2: Type) -> Vec<(TyId, Type)> {
+pub fn unify_one(tp1: Type, tp2: Type) -> (InferProcess, Vec<(TyId, Type)>) {
+    let mut process = Vec::new();
+    let ty1_cloned = tp1.clone();
+    let ty2_cloned = tp2.clone();
+
     let result = match (tp1.clone(), tp2.clone()) {
         (Type::Num, Type::Num) | (Type::Bool, Type::Bool) => Vec::new(),
         (Type::TyVar(x), z) | (z, Type::TyVar(x)) => vec![(x, z)],
         (Type::Fun { arg: a, ret: b }, Type::Fun { arg: x, ret: y }) => {
-            let mut res = Vec::new();
-            res.append(&mut unify_one(
-                operations,
-                a.as_ref().clone(),
-                x.as_ref().clone(),
-            ));
-            res.append(&mut unify_one(
-                operations,
-                b.as_ref().clone(),
-                y.as_ref().clone(),
-            ));
-            res
+            let mut subs = Vec::new();
+            let (p, mut s) = unify_one(a.as_ref().clone(), x.as_ref().clone());
+            process.push(p);
+            subs.append(&mut s);
+            // subs.push(s);
+
+            let (p, mut s) = unify_one(b.as_ref().clone(), y.as_ref().clone());
+            process.push(p);
+            subs.append(&mut s);
+
+            subs
         }
 
         (tp1, tp2) => panic!("mismatched types: ({:?}, {:?})", tp1, tp2),
     };
-    operations.push(InferOperation::UnifyOne(tp1, tp2, result.clone()));
 
-    result
+    (
+        InferProcess {
+            operation: InferOperation::UnifyOne {
+                ty1: ty1_cloned,
+                ty2: ty2_cloned,
+                result: result.clone(),
+            },
+            process,
+        },
+        result,
+    )
 }
 
 pub fn apply_aexpr(subs: &Vec<(TyId, Type)>, aexpr: AExpr) -> AExpr {
     match aexpr {
-        AExpr::Num(n, t) => AExpr::Num(n, apply(&mut Vec::new(), subs, t)),
-        AExpr::Bool(b, t) => AExpr::Bool(b, apply(&mut Vec::new(), subs, t)),
-        AExpr::Val(s, t) => AExpr::Val(s, apply(&mut Vec::new(), subs, t)),
+        AExpr::Num(n, t) => AExpr::Num(n, apply(subs, t).1),
+        AExpr::Bool(b, t) => AExpr::Bool(b, apply(subs, t).1),
+        AExpr::Val(s, t) => AExpr::Val(s, apply(subs, t).1),
         AExpr::BinOp(lhs, op, rhs, t) => AExpr::BinOp(
             Box::new(apply_aexpr(subs, *lhs)),
             op,
             Box::new(apply_aexpr(subs, *rhs)),
-            apply(&mut Vec::new(), subs, t),
+            apply(subs, t).1,
         ),
-        AExpr::Fun(id, e, t) => AExpr::Fun(
-            id,
-            Box::new(apply_aexpr(subs, *e)),
-            apply(&mut Vec::new(), subs, t),
-        ),
+        AExpr::Fun(id, e, t) => AExpr::Fun(id, Box::new(apply_aexpr(subs, *e)), apply(subs, t).1),
         AExpr::App(fun, arg, t) => AExpr::App(
             Box::new(apply_aexpr(subs, *fun)),
             Box::new(apply_aexpr(subs, *arg)),
-            apply(&mut Vec::new(), subs, t),
+            apply(subs, t).1,
         ),
     }
 }
@@ -265,8 +322,7 @@ pub fn infer(mut environment: Environment, expr: Expr) -> InferResult {
     collect_aexpr(&mut constraints, &aexpr);
     let constraints_result = constraints.clone();
 
-    let mut operations = Vec::new();
-    let subs = unify(&mut operations, &mut constraints);
+    let (process, subs) = unify(&mut constraints);
 
     let result = apply_aexpr(&subs, aexpr.clone());
 
@@ -274,7 +330,7 @@ pub fn infer(mut environment: Environment, expr: Expr) -> InferResult {
         input: expr,
         annotated: aexpr,
         constraints: constraints_result,
-        operations,
+        process,
         output: result,
     }
 }

@@ -62,6 +62,12 @@ pub enum Type {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TyId(pub u32);
 
+impl TyId {
+    pub fn to_doc(&self) -> RcDoc<()> {
+        RcDoc::text("a").append(RcDoc::as_string(self.0))
+    }
+}
+
 impl Type {
     fn precedence(&self) -> i8 {
         match &self {
