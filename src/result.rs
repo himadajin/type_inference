@@ -24,18 +24,14 @@ impl InferProcess {
                 .append(self.operation.to_doc_operation())
         } else {
             let mut lines = Vec::new();
-            lines.push(
-                self.operation
-                    .to_doc_name()
-                    .append(Doc::space())
-                    .append("{"),
-            );
+            lines.push(RcDoc::text("{"));
             lines.extend(self.process.iter().map(|process| process.to_doc()));
-            lines.push(RcDoc::text("}"));
-            RcDoc::intersperse(lines, Doc::line())
-                .append(Doc::space())
-                .append(self.operation.to_doc_operation())
-                .nest(4)
+            self.operation.to_doc_name().append(RcDoc::space()).append(
+                RcDoc::intersperse(lines, Doc::hardline())
+                    .nest(4)
+                    .append(RcDoc::line())
+                    .append("}"),
+            )
         }
     }
 }
