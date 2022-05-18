@@ -29,8 +29,11 @@ pub enum Type {
     Bool,
     Fun { arg: Box<Type>, ret: Box<Type> },
 
-    T(String),
+    TyVar(TyId),
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct TyId(pub u32);
 
 impl fmt::Display for Type {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -38,7 +41,7 @@ impl fmt::Display for Type {
             Type::Num => write!(f, "num"),
             Type::Bool => write!(f, "bool"),
             Type::Fun { arg, ret } => write!(f, "{}->{}", arg.as_ref(), ret.as_ref()),
-            Type::T(s) => write!(f, "{}", s),
+            Type::TyVar(s) => write!(f, "a{}", s.0),
         }
     }
 }

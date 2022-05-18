@@ -1,7 +1,7 @@
 use core::panic;
 use std::collections::{HashMap, HashSet};
 
-use crate::ast::{collect_ids, AExpr, Expr, Op, Type};
+use crate::ast::{collect_ids, AExpr, Expr, Op, TyId, Type};
 
 pub struct Environment {
     ids: HashMap<String, Type>,
@@ -28,9 +28,9 @@ impl Environment {
     }
 
     fn new_type_param(&mut self) -> Type {
-        let name = format!("a{}", self.type_params_count);
+        let v = TyId(self.type_params_count);
         self.type_params_count += 1;
-        Type::T(name)
+        Type::TyVar(v)
     }
 }
 
@@ -41,7 +41,7 @@ pub fn annotate(expr: &Expr, env: &mut Environment) -> AExpr {
         Expr::Val(x) => {
             let ty = env
                 .get_id(x)
-                .expect(format!("variable {} not defined", x).as_str());
+                .expect(format!("variable {:?} not defined", x).as_str());
             AExpr::Val(x.clone(), ty.clone())
         }
         Expr::BinOp(lhs, op, rhs) => {
@@ -128,7 +128,7 @@ pub fn collect_aexpr(constraints: &mut Vec<(Type, Type)>, aexpr: &AExpr) {
                     let arg_tp: &Type = arg.as_ref().into();
                     constraints.push((argt.as_ref().clone(), arg_tp.clone()));
                 }
-                Type::T(_) => {
+                Type::TyVar(_) => {
                     let arg_tp: &Type = arg.as_ref().into();
                     constraints.push((
                         fun_tp.clone(),
@@ -145,14 +145,14 @@ pub fn collect_aexpr(constraints: &mut Vec<(Type, Type)>, aexpr: &AExpr) {
     }
 }
 
-pub fn substitute(u: Type, x: &String, t: Type) -> Type {
+pub fn substitute(u: Type, x: TyId, t: Type) -> Type {
     match t {
         Type::Num | Type::Bool => t,
-        Type::T(c) => {
-            if c == *x {
+        Type::TyVar(v) => {
+            if v == x {
                 u
             } else {
-                Type::T(c)
+                Type::TyVar(v)
             }
         }
         Type::Fun { arg: t1, ret: t2 } => {
@@ -166,12 +166,12 @@ pub fn substitute(u: Type, x: &String, t: Type) -> Type {
     }
 }
 
-pub fn apply(subs: &Vec<(String, Type)>, t: Type) -> Type {
+pub fn apply(subs: &Vec<(TyId, Type)>, t: Type) -> Type {
     subs.iter()
-        .fold(t, |acc, (x, u)| substitute(u.clone(), x, acc))
+        .fold(t, |acc, (x, u)| substitute(u.clone(), *x, acc))
 }
 
-pub fn unify(mut constraints: Vec<(Type, Type)>) -> Vec<(String, Type)> {
+pub fn unify(mut constraints: Vec<(Type, Type)>) -> Vec<(TyId, Type)> {
     match constraints.pop() {
         Some((x, y)) => {
             let mut t2 = unify(constraints);
@@ -185,10 +185,10 @@ pub fn unify(mut constraints: Vec<(Type, Type)>) -> Vec<(String, Type)> {
     }
 }
 
-pub fn unify_one(tp1: Type, tp2: Type) -> Vec<(String, Type)> {
+pub fn unify_one(tp1: Type, tp2: Type) -> Vec<(TyId, Type)> {
     match (tp1, tp2) {
         (Type::Num, Type::Num) | (Type::Bool, Type::Bool) => Vec::new(),
-        (Type::T(x), z) | (z, Type::T(x)) => vec![(x, z)],
+        (Type::TyVar(x), z) | (z, Type::TyVar(x)) => vec![(x, z)],
         (Type::Fun { arg: a, ret: b }, Type::Fun { arg: x, ret: y }) => {
             let mut res = Vec::new();
             res.append(&mut unify_one(a.as_ref().clone(), x.as_ref().clone()));
@@ -200,7 +200,7 @@ pub fn unify_one(tp1: Type, tp2: Type) -> Vec<(String, Type)> {
     }
 }
 
-pub fn apply_aexpr(subs: &Vec<(String, Type)>, aexpr: AExpr) -> AExpr {
+pub fn apply_aexpr(subs: &Vec<(TyId, Type)>, aexpr: AExpr) -> AExpr {
     match aexpr {
         AExpr::Num(n, t) => AExpr::Num(n, apply(subs, t)),
         AExpr::Bool(b, t) => AExpr::Bool(b, apply(subs, t)),
@@ -229,7 +229,7 @@ pub fn infer(mut environment: Environment, expr: Expr) -> AExpr {
     println!("annotated: {}", aexpr);
     let mut constraints = Vec::new();
     collect_aexpr(&mut constraints, &aexpr);
-    println!("constraints: ", );
+    println!("constraints: ",);
 
     for (t1, t2) in &constraints {
         println!("{} = {}", t1, t2);
