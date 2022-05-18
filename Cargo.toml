@@ -2,11 +2,12 @@
 name = "type_inference"
 version = "0.1.0"
 authors = ["Taiki Harada <himazin0927@gmail.com>"]
-edition = "2018"
+edition = "2021"
+build = "build.rs"
 
 [build-dependencies]
 lalrpop = "0.19.5"
 
 [dependencies]
-lalrpop-util = "0.19.5"
+lalrpop-util = { version = "0.19.5", features = ["lexer"] }
 regex = "1"
