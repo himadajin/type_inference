@@ -18,21 +18,33 @@ pub struct InferProcess {
 impl InferProcess {
     pub fn to_doc(&self) -> RcDoc<()> {
         if self.process.is_empty() {
-            self.operation
-                .to_doc_name()
-                .append(Doc::space())
-                .append(self.operation.to_doc_operation())
+            RcDoc::intersperse(
+                [
+                    self.operation.to_doc_name(),
+                    self.operation.to_doc_input(),
+                    RcDoc::text("=>"),
+                    self.operation.to_doc_result(),
+                ],
+                Doc::space(),
+            )
         } else {
             let mut lines = Vec::new();
             lines.push(RcDoc::text("{"));
             lines.extend(self.process.iter().map(|process| process.to_doc()));
-            self.operation.to_doc_name().append(RcDoc::space()).append(
+            RcDoc::intersperse(
+                [self.operation.to_doc_name(), self.operation.to_doc_input()],
+                Doc::space(),
+            )
+            .append(Doc::space())
+            .append(
                 RcDoc::intersperse(lines, Doc::hardline())
                     .nest(4)
                     .append(RcDoc::line())
                     .append("}")
                     .append(RcDoc::space())
-                    .append(self.operation.to_doc_operation()),
+                    .append("=>")
+                    .append(RcDoc::space())
+                    .append(self.operation.to_doc_result()),
             )
         }
     }
@@ -71,56 +83,38 @@ impl InferOperation {
         }
     }
 
-    pub fn to_doc_operation(&self) -> RcDoc<()> {
+    pub fn to_doc_input(&self) -> RcDoc<()> {
         match &self {
-            InferOperation::Unify {
-                constraints,
-                result,
-            } => RcDoc::intersperse(
-                [
-                    constraints_to_doc(constraints),
-                    RcDoc::text("=>"),
-                    substitudes_to_doc(result),
-                ],
-                Doc::space(),
-            ),
-            InferOperation::UnifyOne { ty1, ty2, result } => RcDoc::intersperse(
-                [
-                    ty1.to_doc(),
-                    RcDoc::text("<->"),
-                    ty2.to_doc(),
-                    RcDoc::text("=>"),
-                    substitudes_to_doc(result),
-                ],
+            InferOperation::Unify { constraints, .. } => constraints_to_doc(constraints),
+            InferOperation::UnifyOne { ty1, ty2, .. } => RcDoc::intersperse(
+                [ty1.to_doc(), RcDoc::text("<->"), ty2.to_doc()],
                 Doc::space(),
             ),
             InferOperation::Apply {
-                substitutions,
-                ty,
-                result,
+                substitutions, ty, ..
             } => RcDoc::intersperse(
                 [
                     ty.to_doc(),
                     RcDoc::text("->"),
                     substitudes_to_doc(substitutions),
-                    RcDoc::text("=>"),
-                    result.to_doc(),
                 ],
                 Doc::space(),
             ),
-            InferOperation::Substitude { u, x, t, result } => RcDoc::intersperse(
-                [
-                    RcDoc::text("(")
-                        .append(RcDoc::intersperse(
-                            [u.to_doc(), x.to_doc(), t.to_doc()],
-                            RcDoc::text(",").append(Doc::space()),
-                        ))
-                        .append(")"),
-                    RcDoc::text("=>"),
-                    result.to_doc(),
-                ],
-                Doc::space(),
-            ),
+            InferOperation::Substitude { u, x, t, .. } => RcDoc::text("(")
+                .append(RcDoc::intersperse(
+                    [u.to_doc(), x.to_doc(), t.to_doc()],
+                    RcDoc::text(",").append(Doc::space()),
+                ))
+                .append(")"),
+        }
+    }
+
+    pub fn to_doc_result(&self) -> RcDoc<()> {
+        match &self {
+            InferOperation::Unify { result, .. } => substitudes_to_doc(result),
+            InferOperation::UnifyOne { result, .. } => substitudes_to_doc(result),
+            InferOperation::Apply { result, .. } => result.to_doc(),
+            InferOperation::Substitude { result, .. } => result.to_doc(),
         }
     }
 }
