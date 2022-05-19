@@ -288,6 +288,16 @@ pub fn unify_one(tp1: Type, tp2: Type) -> (InferProcess, Vec<(TyId, Type)>) {
     )
 }
 
+pub fn remove_identical_constraint(constraints: Vec<(Type, Type)>) -> Vec<(Type, Type)> {
+    constraints
+        .into_iter()
+        .filter(|constraint| match constraint {
+            (Type::Num, Type::Num) | (Type::Bool, Type::Bool) => false,
+            _ => true,
+        })
+        .collect()
+}
+
 pub fn apply_aexpr(subs: &Vec<(TyId, Type)>, aexpr: AExpr) -> AExpr {
     match aexpr {
         AExpr::Num(n, t) => AExpr::Num(n, apply(subs, t).1),
@@ -317,6 +327,7 @@ pub fn infer(mut environment: Environment, expr: Expr) -> InferResult {
 
     let mut constraints = Vec::new();
     collect_aexpr(&mut constraints, &aexpr);
+    constraints = remove_identical_constraint(constraints);
     let constraints_result = constraints.clone();
 
     let (process, subs) = unify(&mut constraints);
