@@ -190,9 +190,6 @@ pub fn substitute(u: Type, x: TyId, t: Type) -> (InferProcess, Type) {
 }
 
 pub fn apply(subs: &Vec<(TyId, Type)>, t: Type) -> (InferProcess, Type) {
-    let substitudes_clone = subs.clone();
-    let ty_clone = t.clone();
-
     let (process, result) =
         subs.iter()
             .fold((Vec::new(), t.clone()), |(mut process, acc), (x, u)| {
@@ -204,8 +201,8 @@ pub fn apply(subs: &Vec<(TyId, Type)>, t: Type) -> (InferProcess, Type) {
     (
         InferProcess {
             operation: InferOperation::Apply {
-                substitudes: substitudes_clone,
-                ty: ty_clone,
+                substitutions: subs.clone(),
+                ty: t,
                 result: result.clone(),
             },
             process,

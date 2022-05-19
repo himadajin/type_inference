@@ -49,7 +49,7 @@ pub enum InferOperation {
         result: Vec<(TyId, Type)>,
     },
     Apply {
-        substitudes: Vec<(TyId, Type)>,
+        substitutions: Vec<(TyId, Type)>,
         ty: Type,
         result: Type,
     },
@@ -95,14 +95,14 @@ impl InferOperation {
                 Doc::space(),
             ),
             InferOperation::Apply {
-                substitudes,
+                substitutions,
                 ty,
                 result,
             } => RcDoc::intersperse(
                 [
                     ty.to_doc(),
                     RcDoc::text("->"),
-                    substitudes_to_doc(substitudes),
+                    substitudes_to_doc(substitutions),
                     RcDoc::text("=>"),
                     result.to_doc(),
                 ],
