@@ -151,7 +151,7 @@ impl InferResult {
                         .append(constraints_to_doc(&self.constraints))
                         .nest(offset),
                 ),
-                RcDoc::text("process")
+                RcDoc::text("process:")
                     .append(RcDoc::hardline().append(self.process.to_doc()).nest(offset)),
                 RcDoc::text("output:")
                     .append(RcDoc::hardline().append(self.output.to_doc()).nest(offset)),

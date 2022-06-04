@@ -89,7 +89,7 @@ impl Type {
                         RcDoc::text("->"),
                         ret.to_doc_maybe_paren(prec_rhs),
                     ],
-                    Doc::Nil,
+                    Doc::space(),
                 )
             }
             Type::TyVar(id) => RcDoc::text("a").append(RcDoc::as_string(id.0)),
