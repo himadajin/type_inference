@@ -163,13 +163,9 @@ pub enum Expr {
 }
 
 pub const PREC_CLOSURE: i8 = -40;
-pub const PREC_JUMP: i8 = -30;
-pub const PREC_RANGE: i8 = -10;
 // The range 2..=14 is reserved for AssocOp binary operator precedences.
 pub const PREC_PREFIX: i8 = 50;
-pub const PREC_POSTFIX: i8 = 60;
 pub const PREC_PAREN: i8 = 99;
-pub const PREC_FORCE_PAREN: i8 = 100;
 
 impl Expr {
     pub fn precedence(&self) -> i8 {
